@@ -13,11 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List
+
 import paddle
 import paddle.nn as nn
 
 from paddlenlp.utils.env import CONFIG_NAME
 
+from ...utils.converter import StateDictNameMapping
 from .. import PretrainedModel, register_base_model
 from .configuration import (
     DISTILBERT_PRETRAINED_INIT_CONFIGURATION,
@@ -78,6 +81,113 @@ class DistilBertPretrainedModel(PretrainedModel):
     base_model_prefix = "distilbert"
     config_class = DistilBertConfig
     model_config_file = CONFIG_NAME
+
+    @classmethod
+    def _get_name_mappings(cls, config: DistilBertConfig) -> List[StateDictNameMapping]:
+        mappings: list[StateDictNameMapping] = []
+        model_mappings = [
+            ["embeddings.word_embeddings.weight", "embeddings.word_embeddings.weight"],
+            ["embeddings.position_embeddings.weight", "embeddings.position_embeddings.weight"],
+            ["embeddings.token_type_embeddings.weight", "embeddings.token_type_embeddings.weight"],
+            ["embeddings.LayerNorm.weight", "embeddings.layer_norm.weight"],
+            ["embeddings.LayerNorm.bias", "embeddings.layer_norm.bias"],
+            ["pooler.dense.weight", "pooler.dense.weight", "transpose"],
+            ["pooler.dense.bias", "pooler.dense.bias"],
+            # for TokenClassification
+        ]
+        for layer_index in range(config.num_hidden_layers):
+            layer_mappings = [
+                [
+                    f"transformer.layer.{layer_index}.attention.q_lin.weight",
+                    f"encoder.layers.{layer_index}.self_attn.q_proj.weight",
+                    "transpose",
+                ],
+                [
+                    f"transformer.layer.{layer_index}.attention.q_lin.bias",
+                    f"encoder.layers.{layer_index}.self_attn.q_proj.bias",
+                ],
+                [
+                    f"transformer.layer.{layer_index}.attention.k_lin.weight",
+                    f"encoder.layers.{layer_index}.self_attn.k_proj.weight",
+                    "transpose",
+                ],
+                [
+                    f"transformer.layer.{layer_index}.attention.k_lin.bias",
+                    f"encoder.layers.{layer_index}.self_attn.k_proj.bias",
+                ],
+                [
+                    f"transformer.layer.{layer_index}.attention.v_lin.weight",
+                    f"encoder.layers.{layer_index}.self_attn.v_proj.weight",
+                    "transpose",
+                ],
+                [
+                    f"transformer.layer.{layer_index}.attention.v_lin.bias",
+                    f"encoder.layers.{layer_index}.self_attn.v_proj.bias",
+                ],
+                [
+                    f"transformer.layer.{layer_index}.attention.out_lin.weight",
+                    f"encoder.layers.{layer_index}.self_attn.out_proj.weight",
+                    "transpose",
+                ],
+                [
+                    f"transformer.layer.{layer_index}.attention.out_lin.bias",
+                    f"encoder.layers.{layer_index}.self_attn.out_proj.bias",
+                ],
+                [
+                    f"transformer.layer.{layer_index}.sa_layer_norm.weight",
+                    f"encoder.layers.{layer_index}.norm1.weight",
+                ],
+                [
+                    f"transformer.layer.{layer_index}.sa_layer_norm.bias",
+                    f"encoder.layers.{layer_index}.norm1.bias",
+                ],
+                [
+                    f"transformer.layer.{layer_index}.output_layer_norm.weight",
+                    f"encoder.layers.{layer_index}.norm2.weight",
+                ],
+                [
+                    f"transformer.layer.{layer_index}.output_layer_norm.bias",
+                    f"encoder.layers.{layer_index}.norm2.bias",
+                ],
+                [
+                    f"transformer.layer.{layer_index}.ffn.lin1.weight",
+                    f"encoder.layers.{layer_index}.linear1.weight",
+                ],
+                [
+                    f"transformer.layer.{layer_index}.ffn.lin1.bias",
+                    f"encoder.layers.{layer_index}.linear1.bias",
+                ],
+                [
+                    f"transformer.layer.{layer_index}.ffn.lin2.weight",
+                    f"encoder.layers.{layer_index}.linear2.weight",
+                ],
+                [
+                    f"transformer.layer.{layer_index}.ffn.lin2.bias",
+                    f"encoder.layers.{layer_index}.linear2.bias",
+                ],
+            ]
+            model_mappings.extend(layer_mappings)
+
+        # base-model prefix "DistilBertModel"
+        if "DistilBertModel" not in config.architectures:
+            for mapping in model_mappings:
+                mapping[0] = "distilbert." + mapping[0]
+                mapping[1] = "distilbert." + mapping[1]
+
+        # downstream mappings
+        if "DistilBertForQuestionAnswering" in config.architectures:
+            model_mappings.extend(
+                [["qa_outputs.weight", "classifier.weight", "transpose"], ["qa_outputs.bias", "classifier.bias"]]
+            )
+        if (
+            "DistilBertForMultipleChoice" in config.architectures
+            or "DistilBertForSequenceClassification" in config.architectures
+            or "DistilBertForTokenClassification" in config.architectures
+        ):
+            model_mappings.extend([["classifier.weight", "classifier.weight", "transpose"]])
+
+        mappings = [StateDictNameMapping(*mapping, index=index) for index, mapping in enumerate(model_mappings)]
+        return mappings
 
     def init_weights(self, layer):
         """Initialization hook"""
