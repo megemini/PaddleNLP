@@ -13,15 +13,17 @@
 # limitations under the License.
 from __future__ import annotations
 
-import io
+# import io
 import os
 import pickle
 from functools import lru_cache
 from typing import Union
-from zipfile import ZipFile
 
 import numpy as np
 from _io import BufferedReader
+
+# from zipfile import ZipFile
+
 
 MZ_ZIP_LOCAL_DIR_HEADER_SIZE = 30
 
@@ -164,49 +166,64 @@ def dumpy(*args, **kwarsg):
     return None
 
 
+# todo: 临时切换
+# def load_torch(path: str, **pickle_load_args):
+#     """
+#     load torch weight file with the following steps:
+#     1. load the structure of pytorch weight file
+#     2. read the tensor data and re-construct the state-dict
+#     Args:
+#         path: the path of pytorch weight file
+#         **pickle_load_args: args of pickle module
+#     Returns:
+#     """
+#     pickle_load_args.update({"encoding": "utf-8"})
+
+#     prefix_key = read_prefix_key(path)
+
+#     torch_zip = ZipFile(path, "r")
+#     loaded_storages = {}
+
+#     def load_tensor(dtype, numel, key, location):
+#         name = f"{prefix_key}/data/{key}"
+#         typed_storage = np.frombuffer(torch_zip.open(name).read()[:numel], dtype=dtype)
+#         return typed_storage
+
+#     def persistent_load(saved_id):
+#         assert isinstance(saved_id, tuple)
+#         typename = _maybe_decode_ascii(saved_id[0])
+#         data = saved_id[1:]
+
+#         assert typename == "storage", f"Unknown typename for persistent_load, expected 'storage' but got '{typename}'"
+#         storage_type, key, location, numel = data
+#         dtype = storage_type.dtype
+
+#         if key in loaded_storages:
+#             typed_storage = loaded_storages[key]
+#         else:
+#             nbytes = numel * _element_size(dtype)
+#             typed_storage = load_tensor(dtype, nbytes, key, _maybe_decode_ascii(location))
+#             loaded_storages[key] = typed_storage
+
+#         return typed_storage
+
+#     data_iostream = torch_zip.open(f"{prefix_key}/data.pkl").read()
+#     unpickler_stage = UnpicklerWrapperStage(io.BytesIO(data_iostream), **pickle_load_args)
+#     unpickler_stage.persistent_load = persistent_load
+#     state_dict = unpickler_stage.load()
+#     torch_zip.close()
+#     return state_dict
+
+# def load_torch(path: str, **pickle_load_args):
+#     from paddlenlp.utils.import_utils import import_module
+#     torch_model = import_module("torch")
+#     if torch_model is not None:
+#         state_dict = torch_model.load(path)
+#         return {key: value.cpu().numpy() for key, value in state_dict.items()}
+
+
 def load_torch(path: str, **pickle_load_args):
-    """
-    load torch weight file with the following steps:
-    1. load the structure of pytorch weight file
-    2. read the tensor data and re-construct the state-dict
-    Args:
-        path: the path of pytorch weight file
-        **pickle_load_args: args of pickle module
-    Returns:
-    """
-    pickle_load_args.update({"encoding": "utf-8"})
+    import torch
 
-    prefix_key = read_prefix_key(path)
-
-    torch_zip = ZipFile(path, "r")
-    loaded_storages = {}
-
-    def load_tensor(dtype, numel, key, location):
-        name = f"{prefix_key}/data/{key}"
-        typed_storage = np.frombuffer(torch_zip.open(name).read()[:numel], dtype=dtype)
-        return typed_storage
-
-    def persistent_load(saved_id):
-        assert isinstance(saved_id, tuple)
-        typename = _maybe_decode_ascii(saved_id[0])
-        data = saved_id[1:]
-
-        assert typename == "storage", f"Unknown typename for persistent_load, expected 'storage' but got '{typename}'"
-        storage_type, key, location, numel = data
-        dtype = storage_type.dtype
-
-        if key in loaded_storages:
-            typed_storage = loaded_storages[key]
-        else:
-            nbytes = numel * _element_size(dtype)
-            typed_storage = load_tensor(dtype, nbytes, key, _maybe_decode_ascii(location))
-            loaded_storages[key] = typed_storage
-
-        return typed_storage
-
-    data_iostream = torch_zip.open(f"{prefix_key}/data.pkl").read()
-    unpickler_stage = UnpicklerWrapperStage(io.BytesIO(data_iostream), **pickle_load_args)
-    unpickler_stage.persistent_load = persistent_load
-    state_dict = unpickler_stage.load()
-    torch_zip.close()
-    return state_dict
+    state_dict = torch.load(path)
+    return {key: value.cpu().numpy() for key, value in state_dict.items()}
