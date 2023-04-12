@@ -494,7 +494,7 @@ class CLIPPretrainedModel(PretrainedModel):
                 hard_mappings.extend(text_model_layer_mappings)
 
         # vision model
-        if num_vision_layer > 0:
+        if has_vision_layer:
             vision_model_layer_mappings = [
                 ["vision_model.embeddings.class_embedding", "vision_model.class_embedding"],
                 ["vision_model.embeddings.patch_embedding.weight", "vision_model.conv1.weight"],
