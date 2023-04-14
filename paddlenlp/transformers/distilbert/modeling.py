@@ -88,12 +88,8 @@ class DistilBertPretrainedModel(PretrainedModel):
         model_mappings = [
             ["embeddings.word_embeddings.weight", "embeddings.word_embeddings.weight"],
             ["embeddings.position_embeddings.weight", "embeddings.position_embeddings.weight"],
-            ["embeddings.token_type_embeddings.weight", "embeddings.token_type_embeddings.weight"],
             ["embeddings.LayerNorm.weight", "embeddings.layer_norm.weight"],
             ["embeddings.LayerNorm.bias", "embeddings.layer_norm.bias"],
-            ["pooler.dense.weight", "pooler.dense.weight", "transpose"],
-            ["pooler.dense.bias", "pooler.dense.bias"],
-            # for TokenClassification
         ]
         for layer_index in range(config.num_hidden_layers):
             layer_mappings = [
@@ -152,6 +148,7 @@ class DistilBertPretrainedModel(PretrainedModel):
                 [
                     f"transformer.layer.{layer_index}.ffn.lin1.weight",
                     f"encoder.layers.{layer_index}.linear1.weight",
+                    "transpose",
                 ],
                 [
                     f"transformer.layer.{layer_index}.ffn.lin1.bias",
@@ -160,6 +157,7 @@ class DistilBertPretrainedModel(PretrainedModel):
                 [
                     f"transformer.layer.{layer_index}.ffn.lin2.weight",
                     f"encoder.layers.{layer_index}.linear2.weight",
+                    "transpose",
                 ],
                 [
                     f"transformer.layer.{layer_index}.ffn.lin2.bias",
@@ -175,16 +173,28 @@ class DistilBertPretrainedModel(PretrainedModel):
                 mapping[1] = "distilbert." + mapping[1]
 
         # downstream mappings
+        if "DistilBertForSequenceClassification" in config.architectures:
+            model_mappings.extend(
+                [
+                    ["pre_classifier.weight", "pre_classifier.weight", "transpose"],
+                    ["pre_classifier.bias", "pre_classifier.bias"],
+                    ["classifier.weight", "classifier.weight", "transpose"],
+                    ["classifier.bias", "classifier.bias"],
+                ]
+            )
+
+        if "DistilBertForTokenClassification" in config.architectures:
+            model_mappings.extend(
+                [
+                    ["classifier.weight", "classifier.weight", "transpose"],
+                    ["classifier.bias", "classifier.bias"],
+                ]
+            )
+
         if "DistilBertForQuestionAnswering" in config.architectures:
             model_mappings.extend(
                 [["qa_outputs.weight", "classifier.weight", "transpose"], ["qa_outputs.bias", "classifier.bias"]]
             )
-        if (
-            "DistilBertForMultipleChoice" in config.architectures
-            or "DistilBertForSequenceClassification" in config.architectures
-            or "DistilBertForTokenClassification" in config.architectures
-        ):
-            model_mappings.extend([["classifier.weight", "classifier.weight", "transpose"]])
 
         mappings = [StateDictNameMapping(*mapping, index=index) for index, mapping in enumerate(model_mappings)]
         return mappings
